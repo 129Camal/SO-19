@@ -39,6 +39,8 @@ int main(int argc, char** argv){
         array_insert(arrayArticles, strdup(c));
     }
 
+    close(articles);
+
     // Leitura do ficheiro STRINGS e armazenamento na estrutura correspondente
     char* articleName;
     while((res = readln(strings, &c)) > 0){
@@ -47,6 +49,8 @@ int main(int argc, char** argv){
         articleName = strtok(NULL, " ");
         array_insert(arrayStrings, strdup(articleName));
     }
+
+    close(strings);
 
     int code;
     char* name;
@@ -172,62 +176,36 @@ int main(int argc, char** argv){
 
     }
 
+    // Após verificar todos os comandos
+    // Voltar a abrir os ficheiros para apagar tudo e preparar para escrever
+    articles = open("./txtFiles/ARTIGOS.txt", O_WRONLY |  O_TRUNC);
+    strings = open("./txtFiles/STRINGS.txt", O_WRONLY | O_TRUNC);
+    
+
+    // Buscar o informação sobre os artigos
     int pos = getPosition(arrayArticles);
     char** data = getArray(arrayArticles);
 
+    // Imprimir artigos
     for(int i = 0; i < pos; i++){
-        printf("%s\n", data[i]);
+        sprintf(writeAux, "%s\n", data[i]);
+        write(articles, writeAux, strlen(writeAux));
     }
 
+    // Fechar array de artigos
+    close(articles);
 
+    // Buscar informação sobre os nomes
     pos = getPosition(arrayStrings);
     data = getArray(arrayStrings);
 
+    // Imprimir os nomes
     for(int i = 0; i < pos; i++){
-        printf("%s\n", data[i]);
+        sprintf(writeAux, "%d %s\n", i+1, data[i]);
+        write(strings, writeAux, strlen(writeAux));
     }
-        
-    /*
 
-        if(strcmp("n", token) == 0){
-            
-
-            lseek(articles, 0, SEEK_SET);
-
-            sprintf(writeAux, "%d %s\n", ++nNames, name);
-            write(strings, writeAux, strlen(writeAux));
-            
-            int t = 0;
-
-            for(i = 1; i < code; i++){
-                t += readln(articles, &c);
-            }
-            int tmp = readln(articles, &c);
-
-            c[tmp] = '\0';
-
-            token = strtok(c, " ");
-            printf("%s\n", token);
-            token = strtok(NULL, " ");
-            printf("%s\n", token);
-            token = strtok(NULL, " ");
-            printf("%s\n", token);
-
-            lseek(articles, t+2, SEEK_CUR);
-            
-            for(p = 0; p < 15; p++){
-                writeAux[p] = ' '; 
-            }
-            
-            writeAux[p] = '\n';
-            sprintf(writeAux, "%d %d %s", code, nNames, token);
-            write(articles, writeAux, 16);
-            printf("Nome: %s; Code: %d\n", name, code);
-        }
-        
-        
-    }
-        //write(1, &c, res);
-        */
+    // Fechar fd
+    close(strings);
 }
 
