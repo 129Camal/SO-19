@@ -4,15 +4,15 @@
 
 // Declaração da Estrutura do Array Dinâmico
 typedef struct dynamicArray {
-    char** data;
+    double* data;
     int pos;
     int size;
-} *array;
+} *doubleArray;
 
 // Inicialização do Array Dinâmico
-array init_array(int size) {
-    array conjunto = malloc(sizeof(struct dynamicArray));
-    conjunto -> data = malloc(size * sizeof(char *));
+doubleArray init_array(int size) {
+    doubleArray conjunto = malloc(sizeof(struct dynamicArray));
+    conjunto -> data = malloc(size * sizeof(double));
     conjunto-> pos = 0;
     conjunto-> size = size;
     return conjunto;
@@ -20,13 +20,13 @@ array init_array(int size) {
 
 
 // Inserção no Array Dinâmico
-void array_insert(array obj, char* string) {
+void array_insert(doubleArray obj, double string) {
     
     int position = obj->pos;
     
     if(obj -> pos == (obj -> size - 2)) {
         obj->size *= 2;
-        obj->data = realloc(obj->data, obj->size * sizeof(char *));
+        obj->data = realloc(obj->data, obj->size * sizeof(double));
     }
 
     obj->data[position] = string;
@@ -35,11 +35,11 @@ void array_insert(array obj, char* string) {
 
 // Procurar um valor na estrutura, retorna a posição onde se encontra;
 
-int exist(array l, char* value){
+int exist(doubleArray l, double value){
     int exist = -1, i;
     
     for(i = 0; i < l->pos; i++){
-        if(strcmp(l->data[i], value) == 0){
+        if(l->data[i] == value){
             exist = i;
             break;
         }
@@ -52,14 +52,18 @@ int exist(array l, char* value){
 
 // Procurar um valor na estrutura, recebe o id como argumento
 
-char* getFromPosition(array l, int id){
+double getFromPosition(doubleArray l, int id){
+    double r = -1.0;
 
-    return l->data[id-1];
-
+    if(id > l->pos || id < 1){
+        return r;
+    } else {
+        return l->data[id-1];
+    }
 }
 
 // Procurar um valor na estrutura, recebe o id como argumento
-void addToPosition(array l, int id, char* value){
+void addToPosition(doubleArray l, int id, double value){
 
     l->data[id-1] = value;
 
@@ -67,7 +71,7 @@ void addToPosition(array l, int id, char* value){
 
 // Libertação do Array da memória
 
-void free_array(array l) {
+void free_array(doubleArray l) {
     
     free(l->data);
     free(l);
@@ -76,14 +80,14 @@ void free_array(array l) {
 
 // Ir buscar a última posição ocupada do Array
 
-int getPosition(array l){
+int getPosition(doubleArray l){
 
     return l -> pos;
 
 }
 
 // Ir buscar o Array que contém os dados
-char** getArray(array l){
+double* getArray(doubleArray l){
 
     return l -> data;
 

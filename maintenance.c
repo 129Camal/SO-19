@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <math.h>
-#include "dynamicArray.c"
+#include "dynamicCharArray.c"
 
 // Função para ler um parágrafo
 ssize_t readln(int fildes, char* buf){
@@ -21,13 +21,13 @@ ssize_t readln(int fildes, char* buf){
 int main(int argc, char** argv){
     
     // Abrir os ficheiros necessários
-    int articles = open("./txtFiles/ARTIGOS.txt", O_RDWR);
-    int strings = open("./txtFiles/STRINGS.txt", O_RDWR);
+    int articles = open("./txtFiles/ARTIGOS.txt", O_RDONLY);
+    int strings = open("./txtFiles/STRINGS.txt", O_RDONLY);
     int requests = open(argv[1], O_RDONLY);
 
     // Inicialização dos Arrays Dinâmicos para guardar a informação 
-    array arrayArticles = init_array(100);
-    array arrayStrings = init_array(100);
+    charArray arrayArticles = init_array(100);
+    charArray arrayStrings = init_array(100);
 
     
     ssize_t res;
@@ -207,5 +207,8 @@ int main(int argc, char** argv){
 
     // Fechar fd
     close(strings);
+
+    free_array(arrayStrings);
+    free_array(arrayArticles);
 }
 
