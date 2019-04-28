@@ -1,4 +1,0 @@
-i Subsilia 129.29 
-n 2 Cortina
-p 3 25.7
-i Marcela 91
