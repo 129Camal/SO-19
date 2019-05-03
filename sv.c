@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <math.h>
+#include "article.c"
+
+#define CACHESIZE 3
 
 // Função para ler um parágrafo
 ssize_t readln(int fildes, char* buf){
@@ -18,12 +21,17 @@ ssize_t readln(int fildes, char* buf){
     return total_char;
 }
 
+
 int main(int argc, char** argv){
 
     // Abrir ficheiro dos artigos
     int articles = open("./files/ARTIGOS.bin", O_RDONLY);
     int stocks = open("./files/STOCKS.bin", O_RDWR);
     int sells = open("./files/VENDAS.bin", O_WRONLY | O_APPEND);
+    
+    //Estrutura para fazer o caching de preços
+    Article* caching = malloc(CACHESIZE * sizeof(Article));
+    int posCaching = 0, nCaching = 0;
 
     ssize_t res;
     char c[1024];
@@ -53,16 +61,18 @@ int main(int argc, char** argv){
     char* quantity;
     int clientQuantity, clientFD;
     char clientAddress[512];
+    int i;
+    char* stopstring;
 
     lseek(articles , 0, SEEK_SET);
 
-    res = 1;
 
-    while(read(articles, &code, 4) && read(articles, &clientQuantity, 4) && read(articles, &price, 8)){
-                
-        printf("%d %d %.2f\n", code, clientQuantity, price);
-                
+    Article art = createArticle();
+    
+    while(read(articles, art, 16)){
+        printf("%d %d %.2f\n", art->code, art->ref, art->price);
     }
+
 
     // Ler informação a partir do fifo e ficar à espera
     while((res = readln(fifo, c)) >= 0){
@@ -92,16 +102,25 @@ int main(int argc, char** argv){
                     stockAvailable = 0;
                     write(stocks, &stockAvailable, 4);
                 } else {
+                    // Buscar o código do produto
+                    code = atoi(strtok(NULL, " "));
 
-                    printf("Novo preço de ficheiro!\n");
-                
+                    // Buscar o preço para que foi alterado
+                    price = strtod(strtok(NULL, " "), &stopstring);
+
+                    // Procurar se existe na cache o produto qual o preço foi alterado
+                    for(i = 0; i < nCaching; i++){
+                        if(caching[i]->code == code){
+                            caching[i]->price = price;
+                            //write(1, "Alterei na cache\n", 17);
+                            break;
+                        }
+                    }   
                 }
 
             } else {
                 code = atoi(strtok(NULL, " "));
                 quantity = strtok(NULL, " ");
-
-                //printf("PID: %s, Code: %d, Quantity: %d\n", clientPid, code, quantity);
             
                 // Concatenar o pid com o path
                 sprintf(clientAddress, "./communicationFiles/%s", messageHead);
@@ -114,16 +133,48 @@ int main(int argc, char** argv){
                     close(clientFD);
                     continue;
                 }
-             
-                // Buscar o preço do artigo
-                lseek(articles, ((code-1) * 16) + 8, SEEK_SET);
-                read(articles, &price, 8);
+
+                //Procurar na cache pelo código do produto
+                for(i = 0; i < nCaching; i++){
+                    if(caching[i]->code == code){
+                        price = caching[i]->price;
+                        //write(1, "Encontrei cache\n", 16);
+                        break;
+                    }
+                }
+                
+                
+                //Se não estiver na cache ir buscar ao ficheiro
+                if(i >= nCaching && posCaching < CACHESIZE){
+
+                    // Buscar o preço do artigo
+                    lseek(articles, (code-1) * 16, SEEK_SET);
+
+                    // Criar o objeto artigo
+                    Article aux = createArticle();
+                    read(articles, aux, 16);
+                
+                    // Colocar o preço
+                    price = aux->price;
+
+                    //Adicionar à cache
+                    caching[posCaching] = aux;
+
+                    //Alterar a posição a preencher na cache
+                    posCaching++;
+
+                    //Alterar o número total de elementos na cache
+                    if(nCaching < CACHESIZE) nCaching++;
+
+                    // Alterar o apontador para preencher o array se estiver no maximo
+                    if(posCaching == CACHESIZE) posCaching = 0;
+                }
 
                 // Buscar o stock do artigo
                 lseek(stocks, ((code-1) * 8) + 4, SEEK_SET);
                 read(stocks, &stockAvailable, 4);
 
-                // Query 1
+                // Query 1 do Cliente
                 if(!quantity){
 
                     // Preparar resposta e enviar para a primeira query
@@ -132,7 +183,7 @@ int main(int argc, char** argv){
                     write(clientFD, writeAux, strlen(writeAux));
                     close(clientFD);
                 } 
-                // Query 2
+                // Query 2 do Cliente
                 else {
                 
                     // Verificar a quantidade que o cliente quer
