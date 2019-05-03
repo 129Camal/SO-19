@@ -32,7 +32,8 @@ int main(int argc, char**argv){
     // Abrir os ficheiros necessários
     int articles = open("./files/ARTIGOS.bin", O_RDWR);
     int strings = open("./files/STRINGS.txt", O_RDWR);
-    
+    int server = open("./communicationFiles/server", O_WRONLY);
+
     ssize_t res;
     char c[1024];
     int nArticles = 1;
@@ -113,6 +114,10 @@ int main(int argc, char**argv){
             sprintf(writeAux, "Produto com nome %d preço %.2f inserido com código %d;\n", namePosition, price, nArticles++);
             write(0, writeAux, strlen(writeAux));
 
+            // Enviar mensagem ao servidor que novo item foi adicionado
+            write(server, "m add\n", 6);
+
+
         }
         
         // Alterar um nome recebendo o código
@@ -169,6 +174,8 @@ int main(int argc, char**argv){
             // Alterar posição de escrita no ficheiro e escrever nova referência para o nome;
             lseek(articles, ((code-1) * 16) + 4, SEEK_SET);
             write(articles, &namePosition, 4);
+
+            write(0, "Sucess!\n", 8);
             
 
         }
@@ -195,6 +202,11 @@ int main(int argc, char**argv){
             // Alterar posição de escrita no ficheiro e escrever o novo preço;
             lseek(articles, ((code-1) * 16) + 8, SEEK_SET);
             write(articles, &price, 8);
+            write(0, "Sucess!\n", 8);
+
+            // Enviar mensagem ao servidor que novo item foi adicionado
+            sprintf(writeAux, "m change %d %.2f\n", code, price);
+            write(server, writeAux, strlen(writeAux));
         }
 
     }

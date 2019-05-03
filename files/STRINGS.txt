@@ -8,3 +8,7 @@
 8 kapa
 9 marroquino
 10 feijao
+11 Puyol
+12 manopuyol
+13 Uva
+14 algoritmosparalelos

@@ -6,6 +6,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 
 // Função para ler um parágrafo
 ssize_t readln(int fildes, char* buf){
@@ -24,7 +25,7 @@ int main(int argc, char** argv){
     int server = open("./communicationFiles/server", O_WRONLY);
     
     ssize_t res;
-    pid_t pid;
+    pid_t son;
     char address[512];
     
     // Criar o canal de comunicação para ouvir do servidor
@@ -32,10 +33,9 @@ int main(int argc, char** argv){
     mkfifo(address, 0666); 
 
     // Fazer um processo filho para lidar com a informação recebida do servidor
-    if((pid = fork()) == 0){
+    if((son = fork()) == 0){
         
         char c[1024];
-           
         ssize_t r; 
 
         // Abrir o canal de comunicação para ouvir do servidor
@@ -58,6 +58,9 @@ int main(int argc, char** argv){
         sprintf(writeAux, "%d %s", getpid(), c);
         write(server, writeAux, strlen(writeAux));
     }
+
+    // Matar o processo filho que está a ouvir do servidor
+    kill(son, SIGKILL);
 
     // No final, apagar o ficheiro fifo que foi criado para o servidor comunicar com o cliente
     execlp("rm", "rm", address, NULL);
