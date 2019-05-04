@@ -30,8 +30,8 @@ ssize_t readln(int fildes, char* buf){
 int main(int argc, char**argv){
     
     // Abrir os ficheiros necessários
-    int articles = open("./files/ARTIGOS.bin", O_RDWR);
-    int strings = open("./files/STRINGS.txt", O_RDWR);
+    int articles = open("./files/ARTIGOS", O_RDWR);
+    int strings = open("./files/STRINGS", O_RDWR);
     int server = open("./communicationFiles/server", O_WRONLY);
 
     ssize_t res;
