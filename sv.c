@@ -11,6 +11,7 @@
 #include "sell.c"
 
 #define CACHESIZE 5
+#define AGSIZE 3
 
 // Função para ler um parágrafo
 ssize_t readln(int fildes, char* buf){
@@ -96,16 +97,100 @@ int clientSumStock(int sells, int stocks, int quantity, int stockAvailable, int 
     writeToClient(writeAux, clientAddress);
     return numberSells;
 }
+
+//Função para agregação final
+void agreggateFinal(int fd){
+    pid_t son;
+    time_t rawtime;
+    struct tm *info;
+    char buffer[80];
+    char writeAux[1024];
+
+    time( &rawtime );
+
+    info = localtime( &rawtime );
+
+    strftime(buffer, 80, "./agregationFiles/%Y-%m-%dT%X", info);
+
+    int resultFile = open(buffer, O_RDWR | O_APPEND | O_CREAT, 0666);
+    
+    int pIN[2];
+    int pOUT[2];
+
+    if(pipe(pIN) < 0 || pipe(pOUT) < 0){
+        exit(1);
+    }
+
+    if((son = fork())==0){
+        // Tratar do pipe de entrada FILHO
+        close(pIN[1]);
+        dup2(pIN[0], 0);
+        close(pIN[0]);
+
+        // Tratar do pipe de saída FILHO
+        close(pOUT[0]);
+        dup2(pOUT[1], 1);
+        close(pOUT[1]);
+
+        // Execução do agregador
+        char *args[]= {"./ag", NULL}; 
+        execv(args[0], args);
+
+    } else {
+        
+        // Tratar do pipe de entrada, fechando entrada
+        close(pIN[0]);
+
+        // Tratar do pipe de saida, fechando a escrita
+        close(pOUT[1]);
+
+        Sell sell = createSell();
+
+        lseek(fd, 0, SEEK_SET);
+
+        while(read(fd, sell, 16)){
+            
+            write(pIN[1], sell, 16);
+        
+        }
+        
+        // Fechar quando se acaba de enviar 
+        close(pIN[1]);
+
+        // Receber conjunto agregado
+        while(read(pOUT[0], sell, 16)){
+
+            sprintf(writeAux, "%d %d %.2f\n", sell->code, sell->quantity, sell->price);
+            write(resultFile, writeAux, strlen(writeAux));
+        
+        }
+
+        freeSell(sell);
+    }
+
+    if((son = fork())==0){
+        execlp("rm", "rm", "./agregationFiles/aux", NULL);
+    }
+}
+
+
 // Função para agregar as vendas concorrentemente
 int agreggateConcorrent(int sells, int numberSells, int lastAgregation){
     
     pid_t son;
     int toAdd = numberSells - lastAgregation;
-    int numberOfAgreggators = toAdd / 3;
+    int numberOfAgreggators;
+
+    if(toAdd <= AGSIZE){
+        numberOfAgreggators = 1;
+    } 
+    else {
+        numberOfAgreggators = toAdd / AGSIZE;
+    }
     int toAddEachAgreggator = toAdd / numberOfAgreggators;
     int r = 1;
 
-    printf("%d %d %d\n", toAdd, numberOfAgreggators, toAddEachAgreggator);
+    //printf("%d %d %d\n", toAdd, numberOfAgreggators, toAddEachAgreggator);
     
     int fd[2 * numberOfAgreggators][2];
     
@@ -138,12 +223,13 @@ int agreggateConcorrent(int sells, int numberSells, int lastAgregation){
         
         } else {
             
+            // Tratar do pipe de entrada, fechando entrada
+            close(fd[r-2][0]);
             
-
             if(i == numberOfAgreggators - 1){
                     
                 while(read(sells, sell, 16)){
-                    printf("ENVIANDO %d -> Code: %d, Quantity: %d, Price: %.2f\n", r-2, sell->code, sell->quantity, sell->price);
+                    //printf("ENVIANDO %d -> Code: %d, Quantity: %d, Price: %.2f\n", r-2, sell->code, sell->quantity, sell->price);
                     write(fd[r-2][1] , sell, 16);
                     lastAgregation++;
                 }
@@ -152,16 +238,15 @@ int agreggateConcorrent(int sells, int numberSells, int lastAgregation){
                 for(int j = 0; j < toAddEachAgreggator; j++){
                     read(sells, sell, 16);
                     write(fd[r-2][1] , sell, 16);
-                    printf("ENVIANDO %d -> Code: %d, Quantity: %d, Price: %.2f\n", r-2, sell->code, sell->quantity, sell->price);
+                    //printf("ENVIANDO %d -> Code: %d, Quantity: %d, Price: %.2f\n", r-2, sell->code, sell->quantity, sell->price);
                     lastAgregation++;
                     }
                 }
             
-            // Tratar do pipe de entrada, fechando entrada
-            close(fd[r-2][0]);
+            // Fechar quando se acaba de enviar
             close(fd[r-2][1]);
 
-            // Fechar quando se acaba de enviar 
+             // Fechar parte de escrita do pipe que o filho vai escrever
             close(fd[r-1][1]);
 
         }    
@@ -171,14 +256,20 @@ int agreggateConcorrent(int sells, int numberSells, int lastAgregation){
     ssize_t res;
     Sell sell_aux = createSell();
 
+    int fdaux = open("./agregationFiles/aux", O_CREAT | O_RDWR | O_TRUNC, 0666);
+
     for(int i = 0; i < numberOfAgreggators; i++){
         
         while((res = read(fd[r][0], sell_aux, 16)) > 0){
-            //printf("%zd\n", res);
-            printf("PAI RECEBEU %d -> Code: %d, Quantity: %d, Price: %.2f\n", r, sell_aux->code, sell_aux->quantity, sell_aux->price);
+            write(fdaux, sell_aux, 16);
+            //printf("PAI RECEBEU %d -> Code: %d, Quantity: %d, Price: %.2f\n", r, sell_aux->code, sell_aux->quantity, sell_aux->price);
         } 
         r += 2;
     }
+    
+    // Agregação final
+    agreggateFinal(fdaux);
+    
     return lastAgregation;
 }
 
@@ -266,6 +357,14 @@ int main(int argc, char** argv){
     int numberSells = 0;
     int lastAgregation = 0;
 
+    Sell sell = createSell();
+
+    while(read(sells, sell, 16)){
+        numberSells++;
+    }
+
+    lseek(sells, 0, SEEK_SET);
+
     // Printar os artigos que têm e conta-los
     Article art = createArticle();
     int nArticles = 1;
@@ -326,7 +425,7 @@ int main(int argc, char** argv){
                 }
                 if(strcmp(action, "a") == 0){
                     //lastAgregation = agreggate(sells, numberSells, lastAgregation);
-                    lastAgregation =  agreggateConcorrent(sells, 16, lastAgregation);
+                    lastAgregation =  agreggateConcorrent(sells, numberSells, lastAgregation);
                 }
             } 
             // Se não é da manutenção, é do cliente de vendas
