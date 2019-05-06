@@ -6,7 +6,9 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <math.h>
+#include <time.h>
 #include "cache.c"
+#include "sell.c"
 
 #define CACHESIZE 5
 
@@ -55,8 +57,9 @@ void writeToClient(char* writeAux, char* clientAddress){
 }
 
 // Função para fazer a segunda query do cliente para adicionar/remover stock
-void clientSumStock(int sells, int stocks, int quantity, int stockAvailable,int code, double price, char* clientAddress){
+int clientSumStock(int sells, int stocks, int quantity, int stockAvailable, int code, double price, char* clientAddress, int numberSells){
     char writeAux[1024];
+    Sell sell = createSell();
 
     // Verificar se a quantidade desejada pode ser retirada
     if(quantity < 0 && stockAvailable < abs(quantity)){
@@ -74,20 +77,178 @@ void clientSumStock(int sells, int stocks, int quantity, int stockAvailable,int 
     write(stocks, &stockAvailable, 4);
     sprintf(writeAux, "Stock atualizado para %d!\n", stockAvailable);
 
+        // Registar a venda no ficheiro Vendas
         if(quantity < 0){
-                        
-            // Registar a venda no ficheiro de vendas
-            write(sells, &code, 4);
 
             quantity = abs(quantity);
-            write(sells, &quantity, 4);
-                        
             price = price * abs(quantity);
-            write(sells, &price, 8);
+
+            sell->code = code;
+            sell->quantity = quantity;
+            sell->price = price;
+            
+            write(sells, sell, 16);
+
+            numberSells++;
         }
     } 
 
     writeToClient(writeAux, clientAddress);
+    return numberSells;
+}
+// Função para agregar as vendas concorrentemente
+int agreggateConcorrent(int sells, int numberSells, int lastAgregation){
+    
+    pid_t son;
+    int toAdd = numberSells - lastAgregation;
+    int numberOfAgreggators = toAdd / 3;
+    int toAddEachAgreggator = toAdd / numberOfAgreggators;
+    int r = 1;
+
+    printf("%d %d %d\n", toAdd, numberOfAgreggators, toAddEachAgreggator);
+    
+    int fd[2 * numberOfAgreggators][2];
+    
+    Sell sell = createSell();
+
+    lseek(sells, lastAgregation * 16, SEEK_SET);
+
+    for(int i = 0; i < numberOfAgreggators; i++){
+        
+        pipe(fd[r++]);
+        pipe(fd[r++]);
+
+        if((son = fork())== 0){
+
+            // Tratar do pipe de entrada FILHO
+            close(fd[r-2][1]);
+            dup2(fd[r-2][0], 0);
+            close(fd[r-2][0]);
+
+
+            // Tratar do pipe de saída FILHO
+            close(fd[r-1][0]);
+            dup2(fd[r-1][1], 1);
+            close(fd[r-1][1]);
+            
+
+            // Execução do agregador
+            char *args[]= {"./ag", NULL}; 
+            execv(args[0], args);
+        
+        } else {
+            
+            
+
+            if(i == numberOfAgreggators - 1){
+                    
+                while(read(sells, sell, 16)){
+                    printf("ENVIANDO %d -> Code: %d, Quantity: %d, Price: %.2f\n", r-2, sell->code, sell->quantity, sell->price);
+                    write(fd[r-2][1] , sell, 16);
+                    lastAgregation++;
+                }
+                
+            } else {
+                for(int j = 0; j < toAddEachAgreggator; j++){
+                    read(sells, sell, 16);
+                    write(fd[r-2][1] , sell, 16);
+                    printf("ENVIANDO %d -> Code: %d, Quantity: %d, Price: %.2f\n", r-2, sell->code, sell->quantity, sell->price);
+                    lastAgregation++;
+                    }
+                }
+            
+            // Tratar do pipe de entrada, fechando entrada
+            close(fd[r-2][0]);
+            close(fd[r-2][1]);
+
+            // Fechar quando se acaba de enviar 
+            close(fd[r-1][1]);
+
+        }    
+    }
+
+    r = 2;
+    ssize_t res;
+    Sell sell_aux = createSell();
+
+    for(int i = 0; i < numberOfAgreggators; i++){
+        
+        while((res = read(fd[r][0], sell_aux, 16)) > 0){
+            //printf("%zd\n", res);
+            printf("PAI RECEBEU %d -> Code: %d, Quantity: %d, Price: %.2f\n", r, sell_aux->code, sell_aux->quantity, sell_aux->price);
+        } 
+        r += 2;
+    }
+    return lastAgregation;
+}
+
+// Função para agregar as vendas
+int agreggate(int sells, int numberSells, int lastAgregation){
+    pid_t son;
+    time_t rawtime;
+    struct tm *info;
+    char buffer[80];
+    char writeAux[1024];
+
+    time( &rawtime );
+
+    info = localtime( &rawtime );
+
+    strftime(buffer, 80, "./agregationFiles/%Y-%m-%dT%X", info);
+
+    int resultFile = open(buffer, O_RDWR | O_APPEND | O_CREAT, 0666);
+    
+    int pIN[2];
+    int pOUT[2];
+
+    if(pipe(pIN) < 0 || pipe(pOUT) < 0){
+        exit(1);
+    }
+
+    if((son = fork())==0){
+        // Tratar do pipe de entrada FILHO
+        close(pIN[1]);
+        dup2(pIN[0], 0);
+        close(pIN[0]);
+
+        // Tratar do pipe de saída FILHO
+        close(pOUT[0]);
+        dup2(pOUT[1], 1);
+        close(pOUT[1]);
+
+        // Execução do agregador
+        char *args[]= {"./ag", NULL}; 
+        execv(args[0], args);
+
+    } else {
+        
+        // Tratar do pipe de entrada, fechando entrada
+        close(pIN[0]);
+
+        // Tratar do pipe de saida, fechando a escrita
+        close(pOUT[1]);
+
+        Sell sell = createSell();
+
+        lseek(sells, lastAgregation * 16, SEEK_SET);
+
+        while(read(sells, sell, 16)){
+            write(pIN[1], sell, 16);
+            lastAgregation++;
+        }
+        
+        // Fechar quando se acaba de enviar 
+        close(pIN[1]);
+
+        // Receber conjunto agregado
+        while(read(pOUT[0], sell, 16)){
+            sprintf(writeAux, "%d %d %.2f\n", sell->code, sell->quantity, sell->price);
+            write(resultFile, writeAux, strlen(writeAux));
+        }
+
+        freeSell(sell);
+    }
+    return lastAgregation;
 }
 
 
@@ -96,11 +257,15 @@ int main(int argc, char** argv){
     // Abrir ficheiros que o servidor precisa de aceder
     int articles = open("./files/ARTIGOS", O_RDONLY);
     int stocks = open("./files/STOCKS", O_RDWR);
-    int sells = open("./files/VENDAS", O_WRONLY | O_APPEND);
+    int sells = open("./files/VENDAS", O_RDWR | O_APPEND);
 
     // Estrutura para fazer o caching de preços
     Cache caching = createCache(CACHESIZE);
     
+    //Criação de variáveis para ajudar na agregação
+    int numberSells = 0;
+    int lastAgregation = 0;
+
     // Printar os artigos que têm e conta-los
     Article art = createArticle();
     int nArticles = 1;
@@ -160,7 +325,8 @@ int main(int argc, char** argv){
                     continue;
                 }
                 if(strcmp(action, "a") == 0){
-                    printf("Disponivel brevemente!\n");
+                    //lastAgregation = agreggate(sells, numberSells, lastAgregation);
+                    lastAgregation =  agreggateConcorrent(sells, 16, lastAgregation);
                 }
             } 
             // Se não é da manutenção, é do cliente de vendas
@@ -194,7 +360,7 @@ int main(int argc, char** argv){
                     writeToClient(writeAux, clientAddress);
                     
                 } else {
-                    clientSumStock(sells, stocks, atoi(quantity), stockAvailable, code, price, clientAddress);
+                    numberSells = clientSumStock(sells, stocks, atoi(quantity), stockAvailable, code, price, clientAddress, numberSells);
                 }
             }
         }

@@ -209,6 +209,11 @@ int main(int argc, char**argv){
             write(server, writeAux, strlen(writeAux));
         }
 
+        if(strcmp("a", token) == 0){
+            write(server, "m a\n", 4);
+            write(0, "Sucess!\n", 8);
+        }
+
     }
 
     // Fechar fds
