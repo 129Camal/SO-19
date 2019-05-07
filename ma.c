@@ -5,16 +5,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <math.h>
-
-// lseek(articles , 0, SEEK_SET);
-
-// res = 1;
-
-// while(read(articles, &code, 4) && read(articles, &namePosition, 4) && read(articles, &price, 8)){
-                
-//     printf("%d %d %.2f\n", code, namePosition, price);
-                
-// }
+#include "article.c"
 
 // Função para ler um parágrafo
 ssize_t readln(int fildes, char* buf){
@@ -26,6 +17,104 @@ ssize_t readln(int fildes, char* buf){
 
     return total_char;
 }
+//Função para inserir nomes em novo ficheiro 
+int insertNewFile(int newStrings, char* line){
+    char c[1024];
+    char writeAux[1024];
+
+    ssize_t res;
+    int code = 0;
+    char* name;
+    char* code_aux;
+
+    strtok(line, " ");
+    char* productRef = strtok(NULL, " ");
+
+    lseek(newStrings, 0, SEEK_SET);
+
+    while((res = readln(newStrings, c)) > 0){
+        c[res] = '\0';
+
+        code_aux = strtok(c, " ");
+        code = atoi(code_aux);
+        name = strtok(NULL, " ");
+        //printf("1- %s\n2- %s\n3- %d\n", productRef, name, code);
+        
+        
+        if(strcmp(productRef, name) == 0){
+            return code;
+        }
+
+    }
+    int newCode = code + 1;
+    lseek(newStrings, 0, SEEK_END);
+    sprintf(writeAux, "%d %s", newCode, productRef);
+    write(newStrings, writeAux, strlen(writeAux));
+
+    return newCode;
+
+}
+
+// Função para compactar as STRINGS
+void compactStrings(int strings, int articles, int nArticles){
+    ssize_t res;
+    int ref;
+    char c[1024];
+    
+    int newRef = 0;
+
+    int newStrings = open("./files/NEWSTRING", O_RDWR | O_CREAT, 0666);
+
+    lseek(strings, 0, SEEK_SET);
+
+    for(int i = 0; i < nArticles - 1; i++){
+        // Apontar no ficheiro artigo para o sitio das ref dos nomes
+        lseek(articles, (i * 16) + 4, SEEK_SET);
+
+        //Ler
+        read(articles, &ref, 4);
+        
+        // Colocar apontador nas strings para o strings
+        lseek(strings, 0, SEEK_SET);
+        
+        // Ir lá ter
+        for(int h = 0; h < ref; h++){
+            res = readln(strings, c);
+        }
+        // Fechar o array
+        c[res] = '\0'; 
+        
+        char* newC = strdup(c);
+        
+        // Inserir no novo ficheiro e devolver a nova posição
+        newRef = insertNewFile(newStrings, newC);
+
+        // Se a posição for diferente, escrever nova posição
+        if(newRef != ref){
+            lseek(articles, -4, SEEK_CUR);
+            write(articles, &newRef, 4);
+        }
+
+    }
+
+    pid_t son;
+    int status;
+
+    if((son = fork())==0){
+        execlp("rm", "rm", "./files/STRINGS", NULL);
+    }
+    
+    waitpid(son, &status, 0);
+
+    if((son = fork())==0){
+        execlp("mv", "mv", "./files/NEWSTRING", "./files/STRINGS", NULL);
+    }
+    
+    dup2(newStrings, strings);
+    close(newStrings);
+
+}
+
 
 int main(int argc, char**argv){
     
@@ -38,13 +127,17 @@ int main(int argc, char**argv){
     char c[1024];
     int nArticles = 1;
 
+    Article art = createArticle();
+
     // Leitura do ficheiro ARTIGOS para descobrir o número de artigos que tem
-    while((res = read(articles, &c, 16)) > 15){
+    while((res = read(articles, art, 16)) > 15){
         
         nArticles++;
     
     }
 
+    compactStrings(strings, articles, nArticles);
+    
     int code;
     char* name;
     double price = 0.0;
@@ -64,6 +157,7 @@ int main(int argc, char**argv){
         // Caso a instrução recebida comece por i (Inserir Novo Artigo)
         if(strcmp("i", token) == 0){
             lseek(articles, 0, SEEK_END);
+            
             // Receção do nome do artigo
             token = strtok(NULL, " ");
             name = strdup(token);
@@ -102,21 +196,21 @@ int main(int argc, char**argv){
             price = strtod(token, &stopstring);
 
             // Esperar pela morte do filho
-            son = wait(&status);
+            son = waitpid(son, &status, 0);
             namePosition = WEXITSTATUS(status);
 
             // Escrever os dados
-            write(articles, &nArticles, 4);
-            write(articles, &namePosition, 4);
-            write(articles, &price, 8);
+            art->code = nArticles;
+            art->ref = namePosition;
+            art->price = price;
+            write(articles, art, 16);
 
             // Escrever código para o ecrâ
             sprintf(writeAux, "Produto com nome %d preço %.2f inserido com código %d;\n", namePosition, price, nArticles++);
-            write(0, writeAux, strlen(writeAux));
+            write(1, writeAux, strlen(writeAux));
 
             // Enviar mensagem ao servidor que novo item foi adicionado
             write(server, "m add\n", 6);
-
 
         }
         
@@ -168,7 +262,7 @@ int main(int argc, char**argv){
             }
 
             // Esperar pela morte do filho
-            son = wait(&status);
+            son = waitpid(son, &status, 0);
             namePosition = WEXITSTATUS(status);
 
             // Alterar posição de escrita no ficheiro e escrever nova referência para o nome;

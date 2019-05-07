@@ -362,7 +362,7 @@ int main(int argc, char** argv){
     while(read(sells, sell, 16)){
         numberSells++;
     }
-
+ 
     lseek(sells, 0, SEEK_SET);
 
     // Printar os artigos que têm e conta-los
