@@ -17,7 +17,7 @@ ssize_t readln(int fildes, char* buf){
 
     return total_char;
 }
-//Função para inserir nomes em novo ficheiro 
+//Função para inserir nomes em novo ficheiro durante a compactação
 int insertNewFile(int newStrings, char* line){
     char c[1024];
     char writeAux[1024];
@@ -27,11 +27,12 @@ int insertNewFile(int newStrings, char* line){
     char* name;
     char* code_aux;
 
+    // Ir buscar o nome artigo que foi enviado
     strtok(line, " ");
     char* productRef = strtok(NULL, " ");
 
+    // Procurar se o produto enviado já está no novo ficheiro
     lseek(newStrings, 0, SEEK_SET);
-
     while((res = readln(newStrings, c)) > 0){
         c[res] = '\0';
 
@@ -46,6 +47,8 @@ int insertNewFile(int newStrings, char* line){
         }
 
     }
+
+    // Se não estiver no ficheiro, adicionar, adicionando o novo código
     int newCode = code + 1;
     lseek(newStrings, 0, SEEK_END);
     sprintf(writeAux, "%d %s", newCode, productRef);
@@ -56,7 +59,7 @@ int insertNewFile(int newStrings, char* line){
 }
 
 // Função para compactar as STRINGS
-void compactStrings(int strings, int articles, int nArticles){
+int compactStrings(int strings, int articles, int nArticles){
     ssize_t res;
     int ref;
     char c[1024];
@@ -100,19 +103,31 @@ void compactStrings(int strings, int articles, int nArticles){
     pid_t son;
     int status;
 
+    // Fazer exec para eliminar o ficheiro strings
     if((son = fork())==0){
         execlp("rm", "rm", "./files/STRINGS", NULL);
     }
     
+    // Esperar que seja eliminado
     waitpid(son, &status, 0);
 
+    // Fazer exec para mudar o nome do ficheiro auxiliar
     if((son = fork())==0){
         execlp("mv", "mv", "./files/NEWSTRING", "./files/STRINGS", NULL);
     }
     
+    // Fazer dup2 para alterar a posição do fd para o anterior
     dup2(newStrings, strings);
     close(newStrings);
 
+    // Verificar quantos nomes contêm o novo ficheiro
+    lseek(strings, 0, SEEK_SET);
+    int nStrings = 0;
+    while((res = readln(strings, c)) > 0){
+        nStrings++;
+    }
+
+    return nStrings;
 }
 
 
@@ -126,24 +141,26 @@ int main(int argc, char**argv){
     ssize_t res;
     char c[1024];
     int nArticles = 1;
+    int nStrings = 0;
 
     Article art = createArticle();
-
-    // Leitura do ficheiro ARTIGOS para descobrir o número de artigos que tem
-    while((res = read(articles, art, 16)) > 15){
-        
-        nArticles++;
     
+    off_t size;
+
+    size = lseek(articles, 0, SEEK_END);
+    nArticles += size / 16;
+    
+    while((res = readln(strings, c)) > 0){
+        nStrings++;
     }
 
-    compactStrings(strings, articles, nArticles);
-    
     int code;
     char* name;
     double price = 0.0;
     char *token, *stopstring;
     char writeAux[1024];
     pid_t son;
+    float percentage;
 
     int status, namePosition;
 
@@ -199,6 +216,11 @@ int main(int argc, char**argv){
             son = waitpid(son, &status, 0);
             namePosition = WEXITSTATUS(status);
 
+            // Verificar se um novo nome foi adicionado
+            if(namePosition > nStrings){
+                nStrings++;
+            }
+
             // Escrever os dados
             art->code = nArticles;
             art->ref = namePosition;
@@ -211,6 +233,7 @@ int main(int argc, char**argv){
 
             // Enviar mensagem ao servidor que novo item foi adicionado
             write(server, "m add\n", 6);
+            continue;
 
         }
         
@@ -265,12 +288,17 @@ int main(int argc, char**argv){
             son = waitpid(son, &status, 0);
             namePosition = WEXITSTATUS(status);
 
+            // Verificar se um novo nome foi adicionado
+            if(namePosition > nStrings){
+                nStrings++;
+            }
+
             // Alterar posição de escrita no ficheiro e escrever nova referência para o nome;
             lseek(articles, ((code-1) * 16) + 4, SEEK_SET);
             write(articles, &namePosition, 4);
 
             write(0, "Sucess!\n", 8);
-            
+            continue;
 
         }
 
@@ -301,13 +329,26 @@ int main(int argc, char**argv){
             // Enviar mensagem ao servidor que novo item foi adicionado
             sprintf(writeAux, "m change %d %.2f\n", code, price);
             write(server, writeAux, strlen(writeAux));
+            continue;
         }
 
+        // Pedir o agregador
         if(strcmp("a", token) == 0){
             write(server, "m a\n", 4);
             write(0, "Sucess!\n", 8);
+            continue;
         }
+    
 
+        // Verificação da percentagem de lixo nas strings para verificar se a compactação tem que ser efetuada
+        percentage = (float)(nArticles-1) / nStrings * 100.0;
+        percentage = 100 - percentage;
+
+        // Verificar se a percentagem está entre os valores
+        if(percentage > 0 && percentage >= 20) {
+            
+            nStrings = compactStrings(strings, articles, nArticles);
+        }
     }
 
     // Fechar fds

@@ -223,9 +223,6 @@ int agreggateConcorrent(int sells, int numberSells, int lastAgregation){
         
         } else {
             
-            // Tratar do pipe de entrada, fechando entrada
-            close(fd[r-2][0]);
-            
             if(i == numberOfAgreggators - 1){
                     
                 while(read(sells, sell, 16)){
@@ -243,6 +240,9 @@ int agreggateConcorrent(int sells, int numberSells, int lastAgregation){
                     }
                 }
             
+            // Fechar a parte de escuta
+            close(fd[r-2][0]);
+
             // Fechar quando se acaba de enviar
             close(fd[r-2][1]);
 
@@ -424,7 +424,7 @@ int main(int argc, char** argv){
                     continue;
                 }
                 if(strcmp(action, "a") == 0){
-                    //lastAgregation = agreggate(sells, numberSells, lastAgregation);
+                    //lastAgregation = agreggate(sells, numberSells, lastAgregation); 
                     lastAgregation =  agreggateConcorrent(sells, numberSells, lastAgregation);
                 }
             } 
