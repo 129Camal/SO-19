@@ -110,7 +110,7 @@ void agreggateFinal(int fd){
 
     info = localtime( &rawtime );
 
-    strftime(buffer, 80, "./agregationFiles/%Y-%m-%dT%X", info);
+    strftime(buffer, 80, "./../agregationFiles/%Y-%m-%dT%X", info);
 
     int resultFile = open(buffer, O_RDWR | O_APPEND | O_CREAT, 0666);
     
@@ -169,7 +169,7 @@ void agreggateFinal(int fd){
     }
 
     if((son = fork())==0){
-        execlp("rm", "rm", "./agregationFiles/aux", NULL);
+        execlp("rm", "rm", "./../agregationFiles/aux", NULL);
     }
 }
 
@@ -256,7 +256,7 @@ int agreggateConcorrent(int sells, int numberSells, int lastAgregation){
     ssize_t res;
     Sell sell_aux = createSell();
 
-    int fdaux = open("./agregationFiles/aux", O_CREAT | O_RDWR | O_TRUNC, 0666);
+    int fdaux = open("./../agregationFiles/aux", O_CREAT | O_RDWR | O_TRUNC, 0666);
 
     for(int i = 0; i < numberOfAgreggators; i++){
         
@@ -285,7 +285,7 @@ int agreggate(int sells, int numberSells, int lastAgregation){
 
     info = localtime( &rawtime );
 
-    strftime(buffer, 80, "./agregationFiles/%Y-%m-%dT%X", info);
+    strftime(buffer, 80, "./../agregationFiles/%Y-%m-%dT%X", info);
 
     int resultFile = open(buffer, O_RDWR | O_APPEND | O_CREAT, 0666);
     
@@ -346,9 +346,9 @@ int agreggate(int sells, int numberSells, int lastAgregation){
 int main(int argc, char** argv){
     
     // Abrir ficheiros que o servidor precisa de aceder
-    int articles = open("./files/ARTIGOS", O_RDONLY);
-    int stocks = open("./files/STOCKS", O_RDWR);
-    int sells = open("./files/VENDAS", O_RDWR | O_APPEND);
+    int articles = open("./../files/ARTIGOS", O_RDONLY);
+    int stocks = open("./../files/STOCKS", O_RDWR);
+    int sells = open("./../files/VENDAS", O_RDWR | O_APPEND);
 
     // Estrutura para fazer o caching de preços
     Cache caching = createCache(CACHESIZE);
@@ -381,8 +381,8 @@ int main(int argc, char** argv){
     }
 
     // Criação e abertura de fifo que é a caixa de correio do servidor
-    mkfifo("./communicationFiles/server", 0666); 
-    int fifo = open("./communicationFiles/server", O_RDONLY);
+    mkfifo("./../communicationFiles/server", 0666); 
+    int fifo = open("./../communicationFiles/server", O_RDONLY);
 
     ssize_t res;
     char c[1024];
@@ -434,7 +434,7 @@ int main(int argc, char** argv){
                 quantity = strtok(NULL, " ");
 
                 // Concatenar o pid com o path
-                sprintf(clientAddress, "./communicationFiles/%s", messageHead);
+                sprintf(clientAddress, "./../communicationFiles/%s", messageHead);
 
                 // Verificação da validade do código
                 if(code < 1 || code >= nArticles){

@@ -66,7 +66,7 @@ int compactStrings(int strings, int articles, int nArticles){
     
     int newRef = 0;
 
-    int newStrings = open("./files/NEWSTRING", O_RDWR | O_CREAT, 0666);
+    int newStrings = open("./../files/NEWSTRING", O_RDWR | O_CREAT, 0666);
 
     lseek(strings, 0, SEEK_SET);
 
@@ -105,7 +105,7 @@ int compactStrings(int strings, int articles, int nArticles){
 
     // Fazer exec para eliminar o ficheiro strings
     if((son = fork())==0){
-        execlp("rm", "rm", "./files/STRINGS", NULL);
+        execlp("rm", "rm", "./../files/STRINGS", NULL);
     }
     
     // Esperar que seja eliminado
@@ -113,7 +113,7 @@ int compactStrings(int strings, int articles, int nArticles){
 
     // Fazer exec para mudar o nome do ficheiro auxiliar
     if((son = fork())==0){
-        execlp("mv", "mv", "./files/NEWSTRING", "./files/STRINGS", NULL);
+        execlp("mv", "mv", "./../files/NEWSTRING", "./../files/STRINGS", NULL);
     }
     
     // Fazer dup2 para alterar a posição do fd para o anterior
@@ -134,9 +134,9 @@ int compactStrings(int strings, int articles, int nArticles){
 int main(int argc, char**argv){
     
     // Abrir os ficheiros necessários
-    int articles = open("./files/ARTIGOS", O_RDWR);
-    int strings = open("./files/STRINGS", O_RDWR);
-    int server = open("./communicationFiles/server", O_WRONLY);
+    int articles = open("./../files/ARTIGOS", O_RDWR);
+    int strings = open("./../files/STRINGS", O_RDWR);
+    int server = open("./../communicationFiles/server", O_WRONLY);
 
     ssize_t res;
     char c[1024];

@@ -22,14 +22,14 @@ ssize_t readln(int fildes, char* buf){
 int main(int argc, char** argv){
     
     // Abrir o canal de comunicação com o servidor
-    int server = open("./communicationFiles/server", O_WRONLY);
+    int server = open("./../communicationFiles/server", O_WRONLY);
     
     ssize_t res;
     pid_t son;
     char address[512];
     
     // Criar o canal de comunicação para ouvir do servidor
-    sprintf(address, "./communicationFiles/%d", getpid());
+    sprintf(address, "./../communicationFiles/%d", getpid());
     mkfifo(address, 0666); 
 
     // Fazer um processo filho para lidar com a informação recebida do servidor

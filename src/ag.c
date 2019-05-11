@@ -11,7 +11,7 @@ int main(){
     char address[512];
 
     // Abrir um ficheiro para guardar os dados e efetuar o calculo
-    sprintf(address, "./agregationFiles/%d", getpid());
+    sprintf(address, "./../agregationFiles/%d", getpid());
     int sumFile = open(address, O_RDWR | O_CREAT, 0666);
     int diferent_article = 0;
 
