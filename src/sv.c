@@ -346,9 +346,9 @@ int agreggate(int sells, int numberSells, int lastAgregation){
 int main(int argc, char** argv){
     
     // Abrir ficheiros que o servidor precisa de aceder
-    int articles = open("./../files/ARTIGOS", O_RDONLY);
-    int stocks = open("./../files/STOCKS", O_RDWR);
-    int sells = open("./../files/VENDAS", O_RDWR | O_APPEND);
+    int articles = open("./../files/artigos", O_RDONLY);
+    int stocks = open("./../files/stocks", O_RDWR);
+    int sells = open("./../files/vendas", O_RDWR | O_APPEND);
 
     // Estrutura para fazer o caching de preços
     Cache caching = createCache(CACHESIZE);

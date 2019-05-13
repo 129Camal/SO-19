@@ -105,7 +105,7 @@ int compactStrings(int strings, int articles, int nArticles){
 
     // Fazer exec para eliminar o ficheiro strings
     if((son = fork())==0){
-        execlp("rm", "rm", "./../files/STRINGS", NULL);
+        execlp("rm", "rm", "./../files/strings", NULL);
     }
     
     // Esperar que seja eliminado
@@ -113,7 +113,7 @@ int compactStrings(int strings, int articles, int nArticles){
 
     // Fazer exec para mudar o nome do ficheiro auxiliar
     if((son = fork())==0){
-        execlp("mv", "mv", "./../files/NEWSTRING", "./../files/STRINGS", NULL);
+        execlp("mv", "mv", "./../files/NEWSTRING", "./../files/strings", NULL);
     }
     
     // Fazer dup2 para alterar a posição do fd para o anterior
@@ -134,8 +134,8 @@ int compactStrings(int strings, int articles, int nArticles){
 int main(int argc, char**argv){
     
     // Abrir os ficheiros necessários
-    int articles = open("./../files/ARTIGOS", O_RDWR);
-    int strings = open("./../files/STRINGS", O_RDWR);
+    int articles = open("./../files/artigos", O_RDWR);
+    int strings = open("./../files/strings", O_RDWR);
     int server = open("./../communicationFiles/server", O_WRONLY);
 
     ssize_t res;
@@ -161,6 +161,7 @@ int main(int argc, char**argv){
     char writeAux[1024];
     pid_t son;
     float percentage;
+    char* messageHead;
 
     int status, namePosition;
 
@@ -169,10 +170,10 @@ int main(int argc, char**argv){
 
         c[res-1] = '\0';
         
-        token = strtok(c, " ");
+        messageHead = strtok(c, " ");
         
         // Caso a instrução recebida comece por i (Inserir Novo Artigo)
-        if(strcmp("i", token) == 0){
+        if(strcmp("i", messageHead) == 0){
             lseek(articles, 0, SEEK_END);
             
             // Receção do nome do artigo
@@ -233,12 +234,11 @@ int main(int argc, char**argv){
 
             // Enviar mensagem ao servidor que novo item foi adicionado
             write(server, "m add\n", 6);
-            continue;
 
         }
         
         // Alterar um nome recebendo o código
-        if(strcmp("n", token) == 0){
+        if(strcmp("n", messageHead) == 0){
 
             // Receção do código do artigo
             token = strtok(NULL, " ");
@@ -298,13 +298,12 @@ int main(int argc, char**argv){
             write(articles, &namePosition, 4);
 
             write(0, "Sucess!\n", 8);
-            continue;
 
         }
 
 
         // Alterar um preço recebendo um código de produto
-        if(strcmp("p", token) == 0){
+        if(strcmp("p", messageHead) == 0){
 
             // Receção do código do artigo
             token = strtok(NULL, " ");
@@ -329,14 +328,12 @@ int main(int argc, char**argv){
             // Enviar mensagem ao servidor que novo item foi adicionado
             sprintf(writeAux, "m change %d %.2f\n", code, price);
             write(server, writeAux, strlen(writeAux));
-            continue;
         }
 
         // Pedir o agregador
-        if(strcmp("a", token) == 0){
+        if(strcmp("a", messageHead) == 0){
             write(server, "m a\n", 4);
             write(0, "Sucess!\n", 8);
-            continue;
         }
     
 
